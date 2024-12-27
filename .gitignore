@@ -5,3 +5,6 @@
 /arcoflex056/memdump.log
 /arcoflex056/romload.log
 /arcoflex056/roms/*
+romload.log
+tmp/
+/SESSION.md

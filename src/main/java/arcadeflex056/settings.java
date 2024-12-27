@@ -14,7 +14,7 @@ public class settings {
     public static String version = "v0.56.1";
     public static boolean MESS = false;
     public static String system_name = "";
-    public static String installationDir = "";
+    public static String installationDir = "/Users/nsano/src/java/arcoflex056/tmp/mame/";
     
     // multiple platform support
     public static i_platform_configurator current_platform_configuration;
