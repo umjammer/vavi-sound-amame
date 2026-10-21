@@ -5,7 +5,7 @@
 
 # arcoflex056
 
-<img alt="logo" src="src/main/resources/logo-mame.png" width="200" />
+<img alt="logo" src="src/test/resources/duke_mame.png" width="160" />
 
 Arcadeflex and Consoleflex merged
 
@@ -64,3 +64,7 @@ $ mvn -P amame antrun:run -Damame.rompath=/path/to/roms -Damame.machine=vfx
 
  * jinput
  * merge [vavi-sound-m1](https://jitpack.io/v/umjammer/vavi-sound-m1)
+
+---
+
+<sub>image designed by @umjammer, drawn by nano banana</sub>

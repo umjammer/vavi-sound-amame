@@ -4,8 +4,8 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>javaemus</groupId>
-  <artifactId>arcadeflex056</artifactId>
   <version>0.0.1-SNAPSHOT</version>
+  <artifactId>arcoflex056</artifactId>
 
   <properties>
     <vavi.test.volume>0.02</vavi.test.volume>
@@ -27,7 +27,7 @@
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>properties-maven-plugin</artifactId>
-            <version>1.2.1</version>
+            <version>1.3.1</version>
             <executions>
               <execution>
                 <id>read-properties</id>
@@ -55,16 +55,19 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-antrun-plugin</artifactId>
-            <version>3.1.0</version>
+            <version>3.2.0</version>
             <configuration>
               <target>
                 <java classname="amame.Amame" fork="true">
                   <classpath>
                     <path refid="maven.compile.classpath"/>
+                    <path refid="maven.test.classpath"/>
                   </classpath>
                   <jvmarg value="--enable-native-access=ALL-UNNAMED" />
+                  <jvmarg value="--sun-misc-unsafe-memory-access=allow" />
                   <jvmarg value="-Damame.rompath=${amame.rompath}" />
                   <jvmarg value="-Dapple.awt.application.name=AMAME" />
+                  <jvmarg value="-Djava.util.logging.config.file=src/test/resources/logging.properties" />
                   <!-- the z80 core is one method far bigger than the 8000 bytecodes hotspot compiles -->
                   <jvmarg value="-XX:-DontCompileHugeMethods" />
                   <arg value="${amame.machine}" />
