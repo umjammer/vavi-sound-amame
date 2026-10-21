@@ -20,8 +20,7 @@ import static java.lang.System.getLogger;
 /**
  * Yamaha YM2151 OPM, mame's ym2151.c by way of m1, one instance per chip.
  * <p>
- * The YM2164 OPP of the FB-01 is this chip with a few test registers moved, which the FB-01 does
- * not touch, so it plays it as well.
+ * The YM2164 OPP of the FB-01 is {@link YM2164}.
  */
 public class YM2151 {
 
@@ -290,6 +289,11 @@ public class YM2151 {
         }
     }
 
+    /** the clocks of one step of timer B */
+    protected int timerBPrescaler() {
+        return 1024;
+    }
+
     private void init_chip_tables() {
         int i, j;
         double mult, phaseinc, Hz;
@@ -351,7 +355,7 @@ public class YM2151 {
         }
         for (i = 0; i < 256; i++) {
             // ASG 980324: changed to compute both tim_B_tab and timer_B_time
-            PSG.timer_B_time[i] = 1024 * (256 - i) / (double) PSG.clock;
+            PSG.timer_B_time[i] = timerBPrescaler() * (256 - i) / (double) PSG.clock;
         }
         // calculate noise periods table
         //scaler = ((double)PSG.clock / 64.0) / ((double)PSG.sampfreq);

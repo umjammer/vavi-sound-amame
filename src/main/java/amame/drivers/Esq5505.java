@@ -7,16 +7,22 @@
 package amame.drivers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import amame.cpu.M68000Cpu;
 import amame.devices.EsqPanel;
+import amame.devices.FloppyDisk;
 import amame.devices.MC68681;
 import amame.devices.MidiPort;
+import amame.devices.VfxCartridge;
 import amame.devices.WD1772;
+import amame.emu.EmuTimer;
 import amame.emu.Machine;
+import amame.emu.MediaSlot;
 import amame.emu.Panel;
 import amame.emu.RomSet;
 import amame.emu.SoundStream;
@@ -30,8 +36,8 @@ import amame.sound.ES5510;
  * button and slider hooks amame added to it.
  * <p>
  * A 68000, the OTIS sample player, the ESP effects processor fed by the pump, a 68681 duart
- * with the midi on channel A and the front panel on channel B. The VFX-SD's floppy is not there,
- * nor are the cartridges.
+ * with the midi on channel A and the front panel on channel B, the cartridge slot and the
+ * VFX-SD's floppy drive.
  *
  * @author <a href="mailto:umjammer@gmail.com">Naohide Sano</a> (nsano)
  * @version 0.00 2026-10-21 nsano initial version <br>
@@ -92,6 +98,13 @@ public final class Esq5505 extends Machine {
             {22, "Stop/Cont", "sequencer"}, {23, "Play", "sequencer"}, {19, "Record", "sequencer"},
     };
 
+    /** the buttons with lights and the lights, from mame's layouts, 16 is the floppy's */
+    private static final Map<Integer, Integer> LIGHTS = Map.ofEntries(
+            Map.entry(52, 15), Map.entry(53, 13), Map.entry(54, 7),
+            Map.entry(55, 14), Map.entry(56, 6), Map.entry(57, 4), Map.entry(46, 12), Map.entry(47, 3),
+            Map.entry(48, 11), Map.entry(49, 2), Map.entry(35, 10), Map.entry(34, 1), Map.entry(25, 9),
+            Map.entry(8, 5), Map.entry(30, 0), Map.entry(31, 8));
+
     private final Model model;
 
     private byte[] osrom;
@@ -107,17 +120,28 @@ public final class Esq5505 extends Machine {
     private MidiPort mdin;
     private SoundStream pump;
     private WD1772 fdc;
+    private VfxCartridge cart;
+    private Path cartPath;
+    private Path diskPath;
 
     private int duartIo;
     private boolean otisIrq;
     private boolean duartIrq;
     private boolean espHalted = true;
-    /** the VFX-SD's drive, it is empty: selecting it raises a disk change on irq 1 */
+    /** the VFX-SD's drive, selecting it with a new disk or none raises a disk change on irq 1 */
     private boolean floppyIsActive;
-    private final boolean floppyDskchg = true;
+    private boolean floppyIsLoaded;
+    private boolean floppyDskchg = true;
+    private boolean docirq;
+    private EmuTimer motorOnTimer;
+    /** what the motor on timer is to do */
+    private boolean floppyMotorOn;
+    private EmuTimer dskchgResetTimer;
     private final int[] analogValues = new int[8];
 
     private final List<Panel.Control> controls;
+    private final List<Panel.Light> lights;
+    private final List<MediaSlot> mediaSlots;
     private final Panel front;
 
     public Esq5505(String name) {
@@ -130,8 +154,9 @@ public final class Esq5505 extends Machine {
         for (Object[] button : BUTTONS) {
             int code = (Integer) button[0];
             if (!model.sd && "sequencer".equals(button[2])) continue;
+            Integer light = LIGHTS.get(code);
             list.add(new Panel.SimpleControl((String) button[1], Panel.Control.Type.BUTTON, (String) button[2],
-                    v -> panel.setButton(code, v > 0.5f)));
+                    v -> panel.setButton(code, v > 0.5f), light == null ? null : () -> panel != null && panel.isLightOn(light)));
         }
         // the analog values are 10 bits, left-justified within 16 bits
         list.add(new Panel.SimpleControl("Data Entry", Panel.Control.Type.SLIDER, "slider",
@@ -139,6 +164,11 @@ public final class Esq5505 extends Machine {
         list.add(new Panel.SimpleControl("Volume", Panel.Control.Type.SLIDER, "slider",
                 v -> panel.setAnalogValue(5, Math.round(v * 0x3ff) << 6)));
         controls = Collections.unmodifiableList(list);
+        lights = model.sd ? List.of(new Panel.SimpleLight("Disk", () -> panel != null && panel.isFloppyActive())) : List.of();
+        List<MediaSlot> slots = new ArrayList<>();
+        slots.add(new CartridgeSlot());
+        if (model.sd) slots.add(new FloppySlot());
+        mediaSlots = Collections.unmodifiableList(slots);
         front = new Panel() {
             @Override
             public Display getDisplay() {
@@ -148,6 +178,11 @@ public final class Esq5505 extends Machine {
             @Override
             public List<Control> getControls() {
                 return controls;
+            }
+
+            @Override
+            public List<Light> getLights() {
+                return lights;
             }
 
             @Override
@@ -237,12 +272,23 @@ public final class Esq5505 extends Machine {
         }
 
         esp = new ES5510();
-        if (model.sd) fdc = new WD1772(this);
+        if (model.sd) {
+            fdc = new WD1772(this);
+            motorOnTimer = timer(this::floppyMotorOn);
+            dskchgResetTimer = timer(this::floppyDskchgReset);
+            // machine_start: the disk change according to whether there is a floppy in the drive
+            floppyDskchg = fdc.getDisk() == null;
+        }
 
         otis = new ES5505(10_000_000, 4);
         otis.setRegion(0, waverom);
         if (model.sd) otis.setRegion(1, new byte[0x200000]);
-        otis.setIrqCallback(state -> { otisIrq = state != 0; updateIrq(); });
+        otis.setIrqCallback(state -> {
+            if (otisIrq != (state != 0)) {
+                otisIrq = state != 0;
+                if (fdc != null) updateDocirq(); else { docirq = otisIrq; updateIrq(); }
+            }
+        });
         otis.setReadPort(() -> analogValues[duartIo & 7]);
         otis.setUpdate(this::updateOtis);
         // the pump runs at the rate of the otis, the clock of mame's pump follows it
@@ -335,10 +381,13 @@ public final class Esq5505 extends Machine {
         duart.reset();
         panel.reset();
         esp.reset();
-        if (fdc != null) fdc.reset();
+        if (fdc != null) {
+            fdc.reset();
+            // machine_reset: check our image devices for load status
+            floppyLoaded(fdc.getDisk() != null);
+        }
         mdin.clear();
-        // no cartridge: on VFX and later, DUART input bit 1 is 0 for cartridge present.
-        duart.ip(1, true);
+        cartridgeLoaded(cart != null);
         analogValues[0] = 0x7fc0; // pitch mod: start in the center
         analogValues[1] = 0x0000; // patch select: nothing pressed.
         analogValues[2] = 0xffc0; // mod wheel: at the bottom, no modulation
@@ -350,9 +399,54 @@ public final class Esq5505 extends Machine {
     }
 
     private void updateIrq() {
-        // update_docirq_to_maincpu: the drive only pulses dskchg when a disk is in it, there is none
-        boolean docirq = otisIrq || (floppyIsActive && floppyDskchg);
         maincpu.setIrqLevel(duartIrq ? 3 : docirq ? 1 : 0);
+    }
+
+    /** update_docirq_to_maincpu */
+    private void updateDocirq() {
+        boolean floppyDskchgIrq = floppyIsActive && floppyDskchg;
+        if (floppyDskchgIrq && floppyIsLoaded) {
+            // The drives that Ensoniq use only _pulse_ DSKCHG for a brief time, when a disk is in the drive.
+            dskchgResetTimer.adjust(500e-9);
+        }
+        boolean updatedIrq = otisIrq || floppyDskchgIrq;
+        if (updatedIrq != docirq) {
+            docirq = updatedIrq;
+            updateIrq();
+        }
+    }
+
+    private void cartridgeLoaded(boolean loaded) {
+        // On VFX and later, DUART input bit 1 is 0 for cartridge present.
+        duart.ip(1, !loaded);
+    }
+
+    /** floppy_motor_on, the motor follows the drive select a little later */
+    private void floppyMotorOn() {
+        fdc.setDriveMotor(floppyMotorOn);
+        panel.setFloppyActive(floppyMotorOn);
+    }
+
+    private void floppyDskchgReset() {
+        floppyDskchg = !floppyIsLoaded;
+        updateDocirq();
+    }
+
+    private void updateFloppyInputs() {
+        // update the "Disk Ready" input
+        duart.ip(0, floppyIsActive && floppyIsLoaded);
+        // Also update the DOC IRQ in case there's a pending disk change to handle.
+        updateDocirq();
+    }
+
+    private void floppyLoaded(boolean loaded) {
+        floppyIsLoaded = loaded;
+        if (!loaded) {
+            // Only set floppyDskchg; it will be reset a short time after
+            // the disk has been enabled while floppyDskchg is true.
+            floppyDskchg = true;
+        }
+        updateFloppyInputs();
     }
 
     private void duartOutput(int data) {
@@ -360,13 +454,13 @@ public final class Esq5505 extends Machine {
         // bits 0/1/2 = analog sel, bit 4 = DSEL (VFX-SD), bit 6 = ESPHALT
         espHalted = (data & 0x40) != 0;
         if (fdc != null) {
-            boolean active = (data & 0x10) != 0;
-            if (active != floppyIsActive) {
-                floppyIsActive = active;
-                // the "Disk Ready" input, never with no disk
-                duart.ip(0, false);
-                updateIrq();
-            }
+            fdc.setSide((data & 0x08) != 0 ? 0 : 1); // bit 3, inverted -> floppy
+            floppyIsActive = (data & 0x10) != 0; // bit 4 is used to activate the floppy
+            // a delayed motor on, since the keyboard constantly pulses this after a file has been read,
+            // and a slightly delayed motor off, since the keyboard sometimes seems to pulse this.
+            floppyMotorOn = floppyIsActive;
+            motorOnTimer.adjust(floppyIsActive ? 100e-6 : 50e-6);
+            updateFloppyInputs();
         }
     }
 
@@ -382,7 +476,7 @@ public final class Esq5505 extends Machine {
         if (address >= 0x260000 && address < 0x260200) return 0xff00 | esp.hostR((address - 0x260000) >> 1);
         if (address >= 0x280000 && address < 0x280020) return 0xff00 | duart.read((address - 0x280000) >> 1);
         if (fdc != null && address >= 0x2c0000 && address < 0x2c0008) return 0xff00 | fdc.read((address - 0x2c0000) >> 1);
-        if (address >= 0x2e0000 && address < 0x300000) return 0; // no cartridge
+        if (address >= 0x2e0000 && address < 0x300000) return 0xff00 | (cart != null ? cart.read((address - 0x2e0000) >> 1) : 0);
         if (seqram != null && address >= 0x330000 && address < 0x380000) return word(seqram, address - 0x330000);
         if (address >= 0xc00000 && address < 0xc00000 + model.romSize) return word(osrom, address - 0xc00000);
         if (address >= 0xff0000) return word(osram, address & 0xffff);
@@ -402,6 +496,8 @@ public final class Esq5505 extends Machine {
             if ((mask & 0xff) != 0) duart.write((address - 0x280000) >> 1, data & 0xff);
         } else if (fdc != null && address >= 0x2c0000 && address < 0x2c0008) {
             if ((mask & 0xff) != 0) fdc.write((address - 0x2c0000) >> 1, data & 0xff);
+        } else if (address >= 0x2e0000 && address < 0x300000) {
+            if ((mask & 0xff) != 0 && cart != null) cart.write((address - 0x2e0000) >> 1, data & 0xff);
         } else if (seqram != null && address >= 0x330000 && address < 0x380000) {
             combine(seqram, address - 0x330000, data, mask);
         } else if (address >= 0xff0000) {
@@ -421,6 +517,109 @@ public final class Esq5505 extends Machine {
     @Override
     public Panel getPanel() {
         return front;
+    }
+
+    @Override
+    public List<MediaSlot> getMediaSlots() {
+        return mediaSlots;
+    }
+
+    /** the expansion cartridge */
+    private final class CartridgeSlot implements MediaSlot {
+
+        @Override
+        public String getName() {
+            return "Cartridge";
+        }
+
+        @Override
+        public List<String> getExtensions() {
+            return List.of("eeprom", "sc32", "rom", "cart");
+        }
+
+        @Override
+        public Path getPath() {
+            return cart != null ? cartPath : null;
+        }
+
+        @Override
+        public void load(Path path) throws IOException {
+            VfxCartridge c = VfxCartridge.load(path);
+            unload();
+            insert(c, path);
+        }
+
+        @Override
+        public void create(Path path) throws IOException {
+            VfxCartridge c = VfxCartridge.blank();
+            c.save(path);
+            unload();
+            insert(c, path);
+        }
+
+        private void insert(VfxCartridge c, Path path) {
+            cart = c;
+            cartPath = path;
+            if (duart != null) cartridgeLoaded(true);
+        }
+
+        @Override
+        public void unload() throws IOException {
+            if (cart == null) return;
+            VfxCartridge c = cart;
+            cart = null;
+            if (duart != null) cartridgeLoaded(false);
+            if (c.isWriteable()) c.save(cartPath);
+            cartPath = null;
+        }
+    }
+
+    /** the VFX-SD's floppy drive */
+    private final class FloppySlot implements MediaSlot {
+
+        @Override
+        public String getName() {
+            return "Floppy";
+        }
+
+        @Override
+        public List<String> getExtensions() {
+            return List.of("img");
+        }
+
+        @Override
+        public Path getPath() {
+            return fdc != null && fdc.getDisk() != null ? diskPath : null;
+        }
+
+        @Override
+        public void load(Path path) throws IOException {
+            insert(FloppyDisk.load(path), path);
+        }
+
+        @Override
+        public void create(Path path) throws IOException {
+            FloppyDisk disk = new FloppyDisk();
+            disk.save(path);
+            insert(disk, path);
+        }
+
+        private void insert(FloppyDisk disk, Path path) throws IOException {
+            unload();
+            fdc.setDisk(disk);
+            diskPath = path;
+            floppyLoaded(true);
+        }
+
+        @Override
+        public void unload() throws IOException {
+            FloppyDisk disk = fdc.getDisk();
+            if (disk == null) return;
+            fdc.setDisk(null);
+            floppyLoaded(false);
+            if (disk.isModified() && !disk.isWriteProtected()) disk.save(diskPath);
+            diskPath = null;
+        }
     }
 
     @Override

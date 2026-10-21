@@ -44,6 +44,38 @@ public final class AmameTestSupport {
         return sb.toString();
     }
 
+    /** a machine of no cpus, for the chips alone */
+    public static final class Bench extends Machine {
+
+        @Override
+        public String getName() {
+            return "bench";
+        }
+
+        @Override
+        public String getDescription() {
+            return "bench";
+        }
+
+        @Override
+        public void start() {
+        }
+
+        @Override
+        public Panel getPanel() {
+            return null;
+        }
+
+        @Override
+        public void midiIn(byte[] message) {
+        }
+
+        /** runs on a little */
+        public void step(double seconds) {
+            run(time() + seconds);
+        }
+    }
+
     /** runs a machine for a while, the rms of the left channel comes back */
     public static double run(Machine m, double seconds) {
         float[][] out = new float[2][BLOCK];

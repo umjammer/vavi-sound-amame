@@ -57,6 +57,7 @@ public final class EsqPanel implements Panel.Display {
     private boolean expectLightSecondByte;
     private final int[] lightStates = new int[16];
     private int blinkPhase;
+    private boolean floppyActive;
 
     // the vfd
     private boolean blinkOn;
@@ -157,6 +158,15 @@ public final class EsqPanel implements Panel.Display {
     private void updateBlink() {
         blinkPhase = (blinkPhase + 1) & 3;
         blinkOn = (blinkPhase & 2) != 0;
+    }
+
+    /** the floppy's light, which mame puts with the lights of the panel */
+    public void setFloppyActive(boolean floppyActive) {
+        this.floppyActive = floppyActive;
+    }
+
+    public boolean isFloppyActive() {
+        return floppyActive;
     }
 
     /** a light, 0 to 15: off, on or blinking */

@@ -65,6 +65,11 @@ public final class Z80Cpu extends Cpu {
     }
 
     @Override
+    protected void setRemainingCycles(int cycles) {
+        core.setPendingCycles(cycles);
+    }
+
+    @Override
     public void reset() {
         core.reset();
     }

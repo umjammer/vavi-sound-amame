@@ -22,6 +22,7 @@ import java.util.function.Supplier;
 import amame.drivers.Esq5505;
 import amame.drivers.Fb01;
 import amame.emu.Machine;
+import amame.emu.MediaSlot;
 import amame.emu.RomSet;
 
 import static java.lang.System.getLogger;
@@ -115,7 +116,10 @@ public final class Frontend {
         Supplier<Machine> factory = MACHINES.get(name);
         if (factory == null) throw new IllegalArgumentException("no such machine: " + name);
         Machine old = machine;
-        if (old != null) saveNvram(old);
+        if (old != null) {
+            saveNvram(old);
+            unloadMedia(old);
+        }
 
         Machine m = factory.get();
         m.setMidiOut(this::onMidi);
@@ -133,7 +137,21 @@ public final class Frontend {
     /** keeps the memory of the machine playing, at the end */
     public synchronized void close() {
         Machine m = machine;
-        if (m != null) saveNvram(m);
+        if (m != null) {
+            saveNvram(m);
+            unloadMedia(m);
+        }
+    }
+
+    /** takes the disks and the cartridges out, the written ones go back to their files */
+    private static void unloadMedia(Machine m) {
+        for (MediaSlot slot : m.getMediaSlots()) {
+            try {
+                slot.unload();
+            } catch (IOException e) {
+                logger.log(Level.WARNING, slot.getName() + " of " + m.getName() + " not written back", e);
+            }
+        }
     }
 
     /** the memory of every machine that played, for a plug-in's state */

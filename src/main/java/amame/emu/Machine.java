@@ -74,6 +74,11 @@ public abstract class Machine {
     public abstract void midiIn(byte[] message);
 
     /** the battery backed memory, what the machine remembers when it is switched off, null for none */
+    /** the floppy drives and the cartridge slots */
+    public List<MediaSlot> getMediaSlots() {
+        return List.of();
+    }
+
     public byte[] getNvram() {
         return null;
     }
@@ -139,7 +144,9 @@ public abstract class Machine {
             double target = Math.min(until, now + quantum);
             double next = nextTimer();
             if (next < target) target = Math.max(next, now);
+            sliceTarget = target;
             for (Cpu cpu : cpus) {
+                target = sliceTarget;
                 if (cpu.localTime >= target) continue;
                 int cycles = (int) Math.ceil((target - cpu.localTime) * cpu.clock);
                 if (cycles <= 0) continue;
@@ -150,8 +157,18 @@ public abstract class Machine {
                     executing = null;
                 }
             }
-            now = target;
+            now = sliceTarget;
         }
+    }
+
+    /** where the cpus run to now */
+    private double sliceTarget;
+
+    /** a timer was set, one due before the cpus get to the end of their slice cuts it short */
+    void timerAdjusted(double expire) {
+        if (executing == null || expire >= sliceTarget) return;
+        sliceTarget = Math.max(now, expire);
+        executing.abortSlice(sliceTarget);
     }
 
     private double nextTimer() {

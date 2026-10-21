@@ -23,6 +23,8 @@ public abstract class Cpu {
     /** cycles asked of the slice running now, and the time it started at */
     private int sliceCycles;
     private double sliceStart;
+    /** the cycles cut off the slice running now */
+    private int aborted;
 
     protected Cpu(double clock) {
         this.clock = clock;
@@ -42,19 +44,36 @@ public abstract class Cpu {
     /** the cycles of the slice running now that are left to run */
     protected abstract int remainingCycles();
 
+    /** sets the cycles left of the slice running now, the core stops after its instruction at 0 */
+    protected abstract void setRemainingCycles(int cycles);
+
     public abstract void reset();
 
     final int run(int cycles) {
         sliceCycles = cycles;
         sliceStart = localTime;
-        int ran = execute(cycles);
+        aborted = 0;
+        int ran = execute(cycles) - aborted;
         localTime = sliceStart + ran / clock;
         sliceCycles = 0;
+        aborted = 0;
         return ran;
     }
 
     /** the time this cpu is at in the middle of running a slice */
     final double currentTime() {
-        return sliceStart + (sliceCycles - remainingCycles()) / clock;
+        return sliceStart + (sliceCycles - remainingCycles() - aborted) / clock;
+    }
+
+    /**
+     * ends the slice running now at a time before its end, mame's abort_timeslice: something
+     * is due then that the cpu may want to see
+     */
+    final void abortSlice(double at) {
+        int remaining = remainingCycles();
+        int keep = Math.max(0, (int) Math.ceil((at - currentTime()) * clock));
+        if (keep >= remaining) return;
+        aborted += remaining - keep;
+        setRemainingCycles(keep);
     }
 }

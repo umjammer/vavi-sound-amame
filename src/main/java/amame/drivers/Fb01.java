@@ -18,7 +18,7 @@ import amame.devices.MidiPort;
 import amame.emu.Machine;
 import amame.emu.Panel;
 import amame.emu.RomSet;
-import amame.sound.YM2151;
+import amame.sound.YM2164;
 
 
 /**
@@ -41,7 +41,7 @@ public final class Fb01 extends Machine {
     private final byte[] nvram = new byte[0x4000];
 
     private Z80Cpu maincpu;
-    private YM2151 ym2164;
+    private YM2164 ym2164;
     private I8251 upd71051;
     private HD44780 hd44780;
     private MidiPort mdin;
@@ -143,7 +143,7 @@ public final class Fb01 extends Machine {
         upd71051.setTxdHandler(b -> midiOut.write(b));
         mdin = new MidiPort(this, upd71051::receiveCharacter);
 
-        ym2164 = new YM2151();
+        ym2164 = new YM2164();
         ym2164.ym2151_init(this, 4_000_000);
         ym2164.setIrqHandler(state -> { ym2164Irq = state; updateInt(); });
         ym2164.stream.route(0, 0, 1.0f).route(1, 1, 1.0f);

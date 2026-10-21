@@ -7,6 +7,8 @@
 package amame.emu;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 
 /**
@@ -98,15 +100,61 @@ public interface Panel {
 
         /** a button is 1 while held down and 0 otherwise, a slider goes from 0 to 1 */
         void set(float value);
+
+        /** whether the button has a light */
+        default boolean hasLight() {
+            return false;
+        }
+
+        /** the light of the button, blinking is on and off */
+        default boolean isLit() {
+            return false;
+        }
     }
 
-    /** a control that does something on the emulation thread */
-    record SimpleControl(String getName, Type getType, String getGroup, java.util.function.Consumer<Float> action)
+    /** a light of the panel that is not on a button, the disk drive's */
+    interface Light {
+
+        String getName();
+
+        boolean isLit();
+    }
+
+    /** the lights not on the buttons */
+    default List<Light> getLights() {
+        return List.of();
+    }
+
+    /** a control that does something on the emulation thread, its light may be null */
+    record SimpleControl(String getName, Type getType, String getGroup, Consumer<Float> action, BooleanSupplier light)
             implements Control {
+
+        public SimpleControl(String getName, Type getType, String getGroup, Consumer<Float> action) {
+            this(getName, getType, getGroup, action, null);
+        }
 
         @Override
         public void set(float value) {
             action.accept(value);
+        }
+
+        @Override
+        public boolean hasLight() {
+            return light != null;
+        }
+
+        @Override
+        public boolean isLit() {
+            return light != null && light.getAsBoolean();
+        }
+    }
+
+    /** a light that is not on a button */
+    record SimpleLight(String getName, BooleanSupplier light) implements Light {
+
+        @Override
+        public boolean isLit() {
+            return light.getAsBoolean();
         }
     }
 }

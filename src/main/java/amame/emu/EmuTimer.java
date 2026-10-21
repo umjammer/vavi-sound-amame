@@ -44,6 +44,7 @@ public final class EmuTimer {
     public void adjust(double delay, double period) {
         this.expire = machine.time() + Math.max(0, delay);
         this.period = period;
+        machine.timerAdjusted(expire);
     }
 
     /**

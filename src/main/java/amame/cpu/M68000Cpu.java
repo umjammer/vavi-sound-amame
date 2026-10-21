@@ -85,6 +85,11 @@ public final class M68000Cpu extends Cpu {
     }
 
     @Override
+    protected void setRemainingCycles(int cycles) {
+        core.setPendingCycles(cycles);
+    }
+
+    @Override
     public void reset() {
         core.reset();
     }
