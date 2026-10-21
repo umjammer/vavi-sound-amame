@@ -25,6 +25,30 @@ this is a fork of [original](https://github.com/javaemus/arcoflex056).
 
  * old roms for version 0.56 roms are needed 
 
+### amame
+
+[amame](https://github.com/jariseon/amame) (mame's synthesizers as VST2 plug-ins) ported to java,
+in the `amame` package.
+
+| machine | name    | status | comment                                         |
+|---------|---------|:------:|-------------------------------------------------|
+| fb01    | Yamaha FB-01   | ✅ | Z80, YM2164, uPD71051, HD44780              |
+| vfx     | Ensoniq VFX    | ✅ | 68000, ES5505, ES5510, MC68681, the vfd panel |
+| vfxsd   | Ensoniq VFX-SD | ✅ | as the VFX, the floppy drive is empty        |
+
+ * the roms of mame 0.289: `fb01`, `vfx`, `vfxsd`, `hd44780`, `esq2x40_vfx`, the directory
+   goes to the system property `amame.rompath` (`amame.rompath` in `local.properties` for the tests)
+ * standalone, the panel, the virtual keyboard and every midi input of the system
+
+```shell
+$ mvn -P amame antrun:run -Damame.rompath=/path/to/roms -Damame.machine=vfx
+```
+
+ * VST2: `amame.plugin.AmamePlugin` builds a real `AEffect` whose function pointers are jna callbacks,
+   a java host takes it in process with `org.urish.jnavst.VstPlugin(VstEffect, VstHost)`
+   (jnavst is from vavi-apps-mdplayer). a native DAW would need a small library that starts a jvm.
+ * the cpus are those of vavi-sound-m1 (Z80A, MC68000), the 68000 has had its port bugs fixed against mame
+
 ## References
 
  * roms

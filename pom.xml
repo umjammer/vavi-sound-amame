@@ -9,6 +9,9 @@
 
   <properties>
     <vavi.test.volume>0.02</vavi.test.volume>
+    <!-- where the mame roms of fb01, vfx, vfxsd, hd44780 and esq2x40_vfx are, see amame.emu.RomSet -->
+    <amame.rompath>roms</amame.rompath>
+    <amame.machine>fb01</amame.machine>
   </properties>
 
   <profiles>
@@ -43,6 +46,35 @@
         </plugins>
       </build>
     </profile>
+
+    <profile>
+      <!-- mvn -P amame antrun:run -Damame.machine=vfx -->
+      <id>amame</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <version>3.1.0</version>
+            <configuration>
+              <target>
+                <java classname="amame.Amame" fork="true">
+                  <classpath>
+                    <path refid="maven.compile.classpath"/>
+                  </classpath>
+                  <jvmarg value="--enable-native-access=ALL-UNNAMED" />
+                  <jvmarg value="-Damame.rompath=${amame.rompath}" />
+                  <jvmarg value="-Dapple.awt.application.name=AMAME" />
+                  <!-- the z80 core is one method far bigger than the 8000 bytecodes hotspot compiles -->
+                  <jvmarg value="-XX:-DontCompileHugeMethods" />
+                  <arg value="${amame.machine}" />
+                </java>
+              </target>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 
   <build>
@@ -66,6 +98,9 @@
           <argLine>
             -Djava.util.logging.config.file=${project.build.testOutputDirectory}/logging.properties
             -Dvavi.test.volume=@{vavi.test.volume}
+            -Damame.rompath=@{amame.rompath}
+            --enable-native-access=ALL-UNNAMED
+            -XX:-DontCompileHugeMethods
           </argLine>
           <trimStackTrace>false</trimStackTrace>
         </configuration>
@@ -93,6 +128,13 @@
   </dependencyManagement>
 
   <dependencies>
+    <dependency>
+      <!-- org.urish.jnavst, the vst plug-in of amame -->
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna</artifactId>
+      <version>5.19.1</version>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
