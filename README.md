@@ -1,9 +1,9 @@
-[![Release](https://jitpack.io/v/umjammer/arcoflex056.svg)](https://jitpack.io/#umjammer/arcoflex056)
-[![Java CI](https://github.com/umjammer/arcoflex056/actions/workflows/maven.yml/badge.svg)](https://github.com/umjammer/arcoflex056/actions/workflows/maven.yml)
-[![CodeQL](https://github.com/umjammer/arcoflex056/actions/workflows/codeql.yml/badge.svg)](https://github.com/umjammer/arcoflex056/actions/workflows/codeql.yml)
+[![Release](https://jitpack.io/v/umjammer/vavi-sound-ameme.svg)](https://jitpack.io/#umjammer/vavi-sound-ameme)
+[![Java CI](https://github.com/umjammer/vavi-sound-ameme/actions/workflows/maven.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ameme/actions/workflows/maven.yml)
+[![CodeQL](https://github.com/umjammer/vavi-sound-ameme/actions/workflows/codeql.yml/badge.svg)](https://github.com/umjammer/vavi-sound-ameme/actions/workflows/codeql.yml)
 ![Java](https://img.shields.io/badge/Java-25-b07219)
 
-# arcoflex056
+# vavi-sound-ameme
 
 <img alt="logo" src="src/test/resources/duke_mame.png" width="160" />
 
@@ -13,7 +13,7 @@ this is a fork of [original](https://github.com/javaemus/arcoflex056).
 
 ## Install
 
-* [maven](https://jitpack.io/#umjammer/arcoflex056)
+* [maven](https://jitpack.io/#umjammer/vavi-sound-ameme)
 
 ## Usage
 
