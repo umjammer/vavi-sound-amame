@@ -132,10 +132,9 @@
 
   <dependencies>
     <dependency>
-      <!-- org.urish.jnavst, the vst plug-in of amame -->
-      <groupId>net.java.dev.jna</groupId>
-      <artifactId>jna</artifactId>
-      <version>5.19.1</version>
+      <groupId>com.github.umjammer</groupId> <!-- vavi / com.github.umjammer -->
+      <artifactId>vavi-sound-vst</artifactId>
+      <version>0.0.1</version>
     </dependency>
 
     <dependency>
